@@ -9,7 +9,7 @@ function [D] = Convert_TDTiEEG_to_SPMfa(fsample,fchan,downsample,path_save,bch)
 % inputs:
 % - fsample: sampling rate, can be a number or one of those 3 options (in
 %            string): 'TDT' (default: 1525.88Hz), 'oldNK' (default:1000Hz), 
-%            'newNK'(default: 500Hz after export)
+%            'newNK'(default: 1000Hz after export)
 % - fchan:   .mat file names corresponding to brain signal on each
 %            electrode.
 % - downsample: 1 to downsample and filter, 0 to filter only. The default
