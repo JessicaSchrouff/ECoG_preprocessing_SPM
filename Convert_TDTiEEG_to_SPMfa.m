@@ -109,7 +109,7 @@ nchan = length(ord);
 %--------------------------------------------------------------------------
 for i = 1:size(fchan,1)  % for  each channel
     try
-        load(fchan(i,:))       
+        load(deblank(fchan(i,:)))       
     catch
         error('Could not load file')
     end
