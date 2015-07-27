@@ -56,13 +56,15 @@ def = get_defaults_Parvizi;
 d = cell(size(files,1),1);
 for i = 1:size(files,1)
     if filter
+        if i==1
+            spm_jobman('initcfg')
+            spm('defaults', 'EEG');
+        end
         jobfile = {which('Filter_NKnew_SPM_job.m')};
-        spm_jobman('initcfg')
-        spm('defaults', 'EEG');
-        [out] = spm_jobman('run', jobfile,{files(i,:)});
+        [out] = spm_jobman('run', jobfile,{deblank(files(i,:))});
         d{i} = out{end}.D;
     else
-        d{i} = spm_eeg_load(files(i,:));
+        d{i} = spm_eeg_load(deblank(files(i,:)));
     end
 end
 
