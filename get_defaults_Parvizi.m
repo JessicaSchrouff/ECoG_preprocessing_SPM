@@ -24,4 +24,5 @@ def.nharmonics = 3; %Number of harmonics including 0
 
 % Default values for bad channel detection
 % ----------------------------------------
-def.varmult = 5;
+def.varmult = 5; % overall variance on each channel
+def.stdmult = 2; % detection of 'jumps' on each channel

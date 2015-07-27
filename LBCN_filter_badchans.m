@@ -71,7 +71,8 @@ end
 
 % Step 2: Bad channels
 % -------------------------------------------------------------------------
-param = def.varmult;
+varmult = def.varmult;
+stdmult = def.stdmult;
 ibadchans = [];
 
 for i = 1:length(d)
@@ -82,8 +83,8 @@ for i = 1:length(d)
     % Step 2.2: Automatic detection of bad channels based on signal std
     % ---------------------------------------------------------------------
     vch = var(d{i}(goodchans,:),0,2); % only look at the non-pathological channels
-    b = find(vch>(param*median(vch)));
-    g = find(vch<median(vch)/param);
+    b = find(vch>(varmult*median(vch)));
+    g = find(vch<median(vch)/varmult);
     addb = setdiff(b,g);
     if ~isempty(addb)
         disp(['Bad channels for file ', num2str(i),':', num2str(goodchans(addb))])
@@ -98,7 +99,7 @@ for i = 1:length(d)
     std_dat = mean(std_chan);
     nr_jumps = zeros(length(goodchans),1);
     for j=1:length(goodchans)
-        nr_jumps(j) = length(find(diff(d{i}(goodchans(j),:))>std_dat)); % maybe add a multiplicative parameter?
+        nr_jumps(j) = length(find(diff(d{i}(goodchans(j),:))>stdmult*std_dat)); 
     end
     jch = find(nr_jumps>mean(nr_jumps));
     if ~isempty(jch)
