@@ -1,4 +1,4 @@
-function d = LBCN_filter_badchans(files,chanfile, bch)
+function d = LBCN_filter_badchans(files,chanfile, bch, filter)
 
 % This function first filters the channels for line noise + two harmonics
 % using the batch 'Filter_NKnew_SPM_job.m'. It then takes the channel file
@@ -12,6 +12,7 @@ function d = LBCN_filter_badchans(files,chanfile, bch)
 % files    : file names (optional)
 % chanfile : name of the .mat containing channel information (can be empty)
 % bch      : vector with indexes of bad channels
+% filter   : flag to filter the data or not (default = 1)
 % Output:
 % D        : MEEG object, filtered with bad channels marked as 'bad'.
 %--------------------------------------------------------------------------
@@ -42,6 +43,11 @@ end
 if nargin<3 || isempty(bch)
     bch = [];
 end
+
+if nargin <4 || isempty(filter)
+    filter = 1;
+end
+
 bchfile = union(bchfile,bch);
 def = get_defaults_Parvizi;
 
@@ -49,11 +55,15 @@ def = get_defaults_Parvizi;
 % -------------------------------------------------------------------------
 d = cell(size(files,1),1);
 for i = 1:size(files,1)
-    jobfile = {which('Filter_NKnew_SPM_job.m')};
-    spm_jobman('initcfg')
-    spm('defaults', 'EEG');
-    [out] = spm_jobman('run', jobfile,{files(i,:)});
-    d{i} = out{end}.D;
+    if filter
+        jobfile = {which('Filter_NKnew_SPM_job.m')};
+        spm_jobman('initcfg')
+        spm('defaults', 'EEG');
+        [out] = spm_jobman('run', jobfile,{files(i,:)});
+        d{i} = out{end}.D;
+    else
+        d{i} = spm_eeg_load(files(i,:));
+    end
 end
 
 
