@@ -148,6 +148,7 @@ D.trials.events = evtspm;
 D.trials.onset = 1/D.Fsample;
 %Create and save MEEG object
 D = meeg(D);
+D = link(D,fnamedat(D));
 save(D);
 
 % Downsample and filter the data using the batch system
