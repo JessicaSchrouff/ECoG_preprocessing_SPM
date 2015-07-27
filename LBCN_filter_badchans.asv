@@ -1,4 +1,4 @@
-function D = LBCN_filter_badchans(files,chanfile, bch)
+function d = LBCN_filter_badchans(files,chanfile, bch)
 
 % This function first filters the channels for line noise + two harmonics
 % using the batch 'Filter_NKnew_SPM_job.m'. It then takes the channel file
@@ -43,7 +43,7 @@ if nargin<3 || isempty(bch)
     bch = [];
 end
 bchfile = union(bchfile,bch);
-def = get_defaults_parvizi;
+def = get_defaults_Parvizi;
 
 % Step 1: Filter the data using the batch
 % -------------------------------------------------------------------------
@@ -57,56 +57,56 @@ for i = 1:size(files,1)
 end
 
 
-% Bad channels
+% Step 2: Bad channels
 % -------------------------------------------------------------------------
 param = def.varmult;
 ibadchans = [];
 
 for i = 1:length(d)
-    % Step 2: Set bad channels based on clinical recordings
+    % Step 2.1: Set bad channels based on clinical recordings
     % ---------------------------------------------------------------------
     goodchans = setdiff(1:nchannels(d{i}), bchfile);
     
-    % Step 3: Automatic detection of bad channels based on signal std
+    % Step 2.2: Automatic detection of bad channels based on signal std
     % ---------------------------------------------------------------------
     vch = var(d{i}(goodchans,:),0,2); % only look at the non-pathological channels
     b = find(vch>(param*median(vch)));
     g = find(vch<median(vch)/param);
     addb = setdiff(b,g);
     if ~isempty(addb)
-        display(['Additional bad channels for file ', num2str(i),':', num2str(addb)])
+        disp(['Bad channels for file ', num2str(i),':', num2str(goodchans(addb))])
+    else
+        disp(['No bad channels for file ', num2str(i)])
     end
     ibadchans = union(ibadchans,addb); 
     
-    % Step 4: Automatic detection of bad channels based on signal spikes
+    % Step 2.3: Automatic detection of bad channels based on signal spikes
     % ---------------------------------------------------------------------
-    
-for  k=1:size(data,2);
-    nr_jumps(k)=length(find(diff(data(:,k))>STD_All_Data));
-end
-Avg_Spike = mean (nr_jumps);
-figure,plot(nr_jumps);;
-jm=find(nr_jumps>Avg_Spike);
-Spiky_Channels = chan_lbls(jm)
-
     std_chan = std(diff(d{i}(goodchans,:),1,2),0,2);
     std_dat = mean(std_chan);
     nr_jumps = zeros(length(goodchans),1);
     for j=1:length(goodchans)
-        nr_jumps(j) = length(find(diff(d{i}(goodchans(j),:))>std_dat));
+        nr_jumps(j) = length(find(diff(d{i}(goodchans(j),:))>std_dat)); % maybe add a multiplicative parameter?
     end
     jch = find(nr_jumps>mean(nr_jumps));
-    addjch = goodchans(jch);
-    if ~isempty(addb)
-        display(['Additional bad channels for file ', num2str(i),':', num2str(addb)])
-    end
-    
+    if ~isempty(jch)
+        addjch = goodchans(jch);
+        disp(['Spiky channels for file ', num2str(i),':', num2str(addjch)])
+        ibadchans = union(ibadchans,addjch); 
+    else
+        disp(['No spiky channels for file ', num2str(i)])
+    end    
 end
 
 % Save the bad channels into the SPM header
 for i= 1:length(d)
-    d{i} = badchannels(d{i},union(bchfile,ibadchans));
+    totbad = union(bchfile,ibadchans);
+    d{i} = badchannels(d{i},totbad,ones(length(totbad,1)));
     save(d{i});
+    if i==1
+        display(['Bad channels for all files: ', num2str(union(bchfile,ibadchans))])
+        display(['Channel labels: ', char(chanlabels(badchannels(d{i})))])
+    end
 end
 
 

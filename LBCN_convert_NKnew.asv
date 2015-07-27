@@ -7,11 +7,9 @@ function [D] = LBCN_convert_NKnew(fname, path_save)
 % .dat and .mat format. Additionally, it creates a separate file for the
 % microphone and another for the diod, which are not downsampled or
 % filtered.
-% Multiple files can be selected, the code will generate sub-directories
-% for each 'block'.
 % All parameters can be modified by opening (GUI) the corresponding batches:
 % conversion: 'Convert_NKnew_to_SPMfa_job.m'
-% downsample: 'Downsample_NKnew_SPM_job.m'
+% downsample and filtering: 'Downsample_filter_NKnew_SPM_job.m'
 %--------------------------------------------------------------------------
 %Written by J. Schrouff, LBCN, Stanford, 07/21/2015
 
@@ -83,23 +81,20 @@ for id = 1:size(fname,1)
     if size(fname,1)>1
         % Create subdirectory for each file
         mkdir(path_save,['Block_', num2str(id)])
-        path_block = [path_save,filesep,['Block_', num2str(id)]];
-    else
-        path_block = path_save;
-    end
-    save(fullfile(path_block,'Channel_Labels.mat'),'label');
+        path_block = [path_save,]
+    save(fullfile(path_save,'Channel_Labels.mat'),'label');
     labelsdc = labeldc;
     label = labeldc;
-    save(fullfile(path_block,'DCchannel_Labels.mat'),'label');
+    save(fullfile(path_save,'DCchannel_Labels.mat'),'label');
     
     % Create ECoG file
     jobfile = {which('Convert_NKnew_to_SPMfa_job.m')};
     spm_jobman('initcfg')
     spm('defaults', 'EEG');
     [path,name,ext] = spm_fileparts(fname(id,:));
-    spmname = fullfile(path_block,['ECoG_',name,ext]);
+    spmname = fullfile(path_save,['ECoG_',name,ext]);
     input_array{1} = {fname(id,:)};
-    input_array{2} = {fullfile(path_block,'Channel_Labels.mat')};
+    input_array{2} = {fullfile(path_save,'Channel_Labels.mat')};
     input_array{3} = spmname;
     [out] = spm_jobman('run', jobfile,input_array{:});
     D = out{1}.D;
@@ -110,9 +105,9 @@ for id = 1:size(fname,1)
     % Create diod file
     if ~isempty(idc)
         jobfile = {which('Convert_NKnew_to_SPMfa_job.m')};
-        diodname = fullfile(path_block,['DCchans_',name,ext]);
+        diodname = fullfile(path_save,['DCchans_',name,ext]);
         input_array{1} = {fname(id,:)};
-        input_array{2} = {fullfile(path_block,'DCchannel_Labels.mat')};
+        input_array{2} = {fullfile(path_save,'DCchannel_Labels.mat')};
         input_array{3} = diodname;
         [out] = spm_jobman('run', jobfile, input_array{:});
         Ddiod = out{1}.D;
@@ -126,7 +121,7 @@ for id = 1:size(fname,1)
     % Step 3: Downsample ECoG data to 1000Hz
     %--------------------------------------------------------------------------
     jobfile = {which('Downsample_NKnew_SPM_job.m')};
-    namef = fullfile(path_block,D.fname);
+    namef = fullfile(path_save,D.fname);
     [out]=spm_jobman('run', jobfile, {namef});
     D = out{1}.D;
 end

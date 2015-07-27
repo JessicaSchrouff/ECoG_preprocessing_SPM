@@ -22,3 +22,6 @@ def.noise_freq = 60; %default line noise
 def.lineband = 3;    % band to cut around line: freq-band:freq+band
 def.nharmonics = 3; %Number of harmonics including 0
 
+% Default values for bad channel detection
+% ----------------------------------------
+def.varmult = 5;
