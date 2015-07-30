@@ -3,7 +3,7 @@ function [D] = LBCN_convert_NKnew(fname, path_save)
 % Function to convert NK data from edf to SPM format. It takes as inputs
 % the name of the file (optional) and the path where to save the converted
 % data (optional).
-% It creates a downsampled, Notch filtered version of the signal, in SPM
+% It creates a downsampled version of the signal, in SPM
 % .dat and .mat format. Additionally, it creates a separate file for the
 % microphone and another for the diod, which are not downsampled or
 % filtered.

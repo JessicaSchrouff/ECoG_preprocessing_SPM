@@ -1,4 +1,4 @@
-function LBCN_plot_power_spectrum(fname, goodonly, power, indchan)
+function LBCN_plot_power_spectrum(fname, goodonly, power, indchan, timewin)
 
 % Function to plot the power spectrum of all (good) channels.
 % Inputs:
@@ -6,6 +6,7 @@ function LBCN_plot_power_spectrum(fname, goodonly, power, indchan)
 % goodonly  : plot only good channels (1), or all (0: default)
 % power     : flag to plot the power (1) or the psd (0: default)
 % indchan   : indexes of specific channel to plot
+% timewin   : time window to plot spectrogram on (default: 1 to 100s)
 % Outputs:
 % plot of the power spectrum using pwelch
 % -------------------------------------------------------------------------
@@ -29,10 +30,16 @@ if nargin<3 || isempty(power)
     type = 'psd';
 elseif power ==1
     type = 'power';
+elseif power == 0 
+    type = 'psd';
 end
 
 if nargin == 4 && ~isempty(indchan)
     nchan = indchan;
+end
+
+if nargin<5 || isempty(timewin)
+    timewin = 1:100*D.fsample;
 end
 
 % Compute and plot power spectrum
@@ -45,7 +52,7 @@ set_nfft=D.fsample;%nfft
 data_pxx=zeros(round(D.fsample/2)+1,length(nchan));
 
 for k=1:length(nchan)
-    [Pxx,f] = pwelch(D(nchan(k),1:100*D.fsample),set_w,set_ov,set_nfft,D.fsample,type);
+    [Pxx,f] = pwelch(D(nchan(k),timewin),set_w,set_ov,set_nfft,D.fsample,type);
     data_pxx(:,k)=Pxx;
 end
 
