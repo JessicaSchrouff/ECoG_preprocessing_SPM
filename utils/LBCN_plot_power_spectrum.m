@@ -6,7 +6,7 @@ function LBCN_plot_power_spectrum(fname, goodonly, power, indchan, timewin)
 % goodonly  : plot only good channels (1), or all (0: default)
 % power     : flag to plot the power (1) or the psd (0: default)
 % indchan   : indexes of specific channel to plot
-% timewin   : time window to plot spectrogram on (default: 1 to 100s)
+% timewin   : time window to plot spectrogram on (default: length of recording)
 % Outputs:
 % plot of the power spectrum using pwelch
 % -------------------------------------------------------------------------
@@ -39,7 +39,7 @@ if nargin == 4 && ~isempty(indchan)
 end
 
 if nargin<5 || isempty(timewin)
-    timewin = 1:100*D.fsample;
+    timewin = 1:nsamples(D);
 end
 
 % Compute and plot power spectrum

@@ -29,7 +29,7 @@ local.properties
 .buildpath
 
 # Matlab specific
-*.asv
+.asv
 #################
 ## Visual Studio
 #################

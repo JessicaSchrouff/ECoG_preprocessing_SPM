@@ -49,7 +49,7 @@ end
 
 % Compute re-reference matrix
 % -------------------------------------------------------------------------
-d = cell(length(files),1);
+d = cell(size(files,1),1);
 for i = 1:size(files,1)
     % Load file
     D = spm_eeg_load(deblank(files(i,:)));
