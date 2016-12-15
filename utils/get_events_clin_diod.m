@@ -1,15 +1,15 @@
 
-function [evt] = get_events_clin_diod(fname,np,v, thresh_dur,skip)
+function [evt] = get_events_clin_diod(fname,np,v, thresh_dur,skip,skipp)
 
 % function to detect events on the diod, seen as a channel in the SPM MEEG
 % object (D). 
 % inputs:
 % - fname : name of the file containing the diod signal
 % - np    : number of the diod electrode
-% - v     : number of times the signal needs to be bigger than its 
-%           standard deviation.
+% - v     : threshold on normalized diod, default 0.5.
 % - thresh_dur : minimal duration of each event (in seconds)
 % - skip  : number of events to skip at the beginning (starting sequence)
+% - skipp : number of events to skip at the end (ending sequence)
 % output:
 % evt : structure with fields onsets, offsets and durations (in seconds)
 %--------------------------------------------------------------------------
@@ -26,7 +26,7 @@ if nargin<2 || isempty(np)
     np = D.nchannels;    % by default, select last channel
 end
 if nargin<3 || isempty(v)
-    v = 1;  % by default, get one time the std on the diff
+    v = 0.5;  % by default, get one time the std on the diff
 end
 if nargin<4
     thresh_dur = def.thresh_dur; % by default, no minimum duration on events
@@ -35,15 +35,21 @@ if nargin<5
     skip = 0;
 end
 
+if nargin <6
+    skipp = 0;
+end
+
 % Find events using the differential of the signal and the standard
 % deviation
-pdio = D(np,:);
-mp = mean(pdio);
-sp = std(pdio);
+pdio = D(np,:)/max(D(np,:));
+% mp = mean(pdio(pdio>0));
+% minp = mean(pdio(pdio<0));
+% sp = std(pdio(pdio>0));
+% minsp = std(pdio(pdio<0));
 xx = diff(pdio);
-tmp = zeros(1,length(xx));
-ons = find(xx>mp+v*sp); %onsets, no filtering
-off = find(xx<mp-v*sp); %offsets
+% tmp = zeros(1,length(xx));
+ons = find(xx>v); %onsets, no filtering
+off = find(xx<-v); %offsets
 
 onsets = ons(1);
 offsets = off(1);
@@ -98,10 +104,10 @@ else
     dur = offsets - onsets;
     ind = dur>=thresh_dur*D.fsample;
     aa  = find(ind);
-    ind = aa(1+skip):aa(end);
+    ind = aa(1+skip):aa(end-skipp);
     evt = struct('onsets',onsets(ind)/D.fsample, 'offsets',...
         offsets(ind)/D.fsample,'durations',dur(ind)/D.fsample);
-    save([D.path,filesep,'events_from_clin_diod.mat'],'evt')
+%      save([D.path,filesep,'events_from_clin_diod.mat'],'evt')
 end
 
 

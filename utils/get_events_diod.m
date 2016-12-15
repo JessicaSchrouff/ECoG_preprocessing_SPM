@@ -5,7 +5,7 @@ function [evt] = get_events_diod(fname, ichan, skip_before, skip_after, thresh_d
 % object (DC channel exported from .edf) or load .mat with diod signal (as
 % with TDT system). 
 % Inputs:
-% - D : name of file to load
+% - fname : name of file to load
 % - ichan: number of the diod electrode (default: 2 for new NK, empty for TDT)
 % - skip_before: number of events to skip at the beginning (starting sequence)
 % - skip_after: number of events to ignore at the end (ending sequence)
@@ -37,6 +37,7 @@ catch
     samp_rate = def.fsample_diod;
     paths = fileparts(fname);
 end
+diod = diod/max(diod);
 
 if nargin<3
     skip_before = 0; % do not skip events
@@ -55,7 +56,7 @@ end
 
 %(1) binarize the signal
 tmp = zeros(length(diod),1);
-tmp(diod>2.5) = 1;
+tmp(diod>0.3) = 1;
 
 %(2) get differential and define onsets/offsets
 xx = diff(tmp);
@@ -85,8 +86,8 @@ if onsets(1)<offsets(1)
     end
 elseif onsets(1)>offsets(1)
     disp('Missing event onsets at the beginning')
-    j=2;
-    while onsets(1)<offsets(j)
+    j=1;
+    while onsets(1)>offsets(j)
         j = j+1;
     end
     offsets = offsets(j:end);
@@ -100,9 +101,9 @@ else
     dur = offsets - onsets;
     ind = dur>=thresh_dur*samp_rate;
     aa  = find(ind);
-    ind = aa(1+skip_before):aa(end - skip_after);
-    evt = struct('onsets',onsets(ind)/samp_rate, 'offsets',...
-        offsets(ind)/samp_rate,'durations',dur(ind)/samp_rate);
+    ind = aa(1+skip_before:end - skip_after);
+    evt = struct('onsets',onsets(ind)'/samp_rate, 'offsets',...
+        offsets(ind)'/samp_rate,'durations',dur(ind)'/samp_rate);
     save([paths,filesep,'onsets_from_diod.mat'],'evt')
 end
 
