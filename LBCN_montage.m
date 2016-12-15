@@ -14,7 +14,8 @@ function d = LBCN_montage(files,option,montmat)
 % Outputs:
 % re-referenced MEEG objects
 %--------------------------------------------------------------------------
-% Written by J. Schrouff, 07/27/2015, LBCN, Stanford.
+% Written by J. Schrouff, 07/27/2015, LBCN, Stanford. From SPM MEEG tools
+% toolbox written by Rik Henson and Vladimir Litvak.
 
 % Get inputs
 % -------------------------------------------------------------------------
@@ -54,27 +55,30 @@ for i = 1:size(files,1)
     % Load file
     D = spm_eeg_load(deblank(files(i,:)));
     % get number of channels and channel labels
-    chanlab = chanlabels(D);
-    nchan = nchannels(D);
+    eegchan  = D.indchantype('EEG');
+    goodchan = setdiff(eegchan, D.badchannels);
     if strcmpi(option,'av_good')
-        bch = badchannels(D);
-        gch = setdiff([1:nchan], bch); % good channels
+        refchan = goodchan;
     elseif strcmpi(option,'average')
-        gch = 1:nchan;
+        refchan = eegchan;
     end
     % Build or import matrix
     if strcmpi(option, 'av_good') || strcmpi(option, 'average')
-        montage = struct();
-        montage.labelorg = chanlab;
-        montage.labelnew = chanlab; % copy the labels
-        indmeeg = indchantype(D,'EEG'); % indexes of EEG channels
-        indgmeeg = intersect(gch,indmeeg);
-        nchg = length(indgmeeg);
-        rm = (-1/nchg) * ones(nchg,nchg);
-        rm(1:nchg+1:end) =  (nchg-1)/nchg;
-        mont = eye(nchan,nchan);
-        mont(indgmeeg,indgmeeg) = rm;
-        montage.tra = mont;
+        refind  = find(ismember(eegchan, refchan));
+        goodind = find(ismember(eegchan, goodchan));
+        badind  = find(ismember(eegchan, D.badchannels));
+
+        tra                 = eye(length(eegchan));
+        tra(goodind,refind) = tra(goodind,refind) - 1/length(refchan);
+        tra(badind,refind)  = tra(badind,refind)  - 1/length(refchan);
+        montage             = struct();
+        montage.labelorg    = D.chanlabels(eegchan);
+        montage.labelnew    = D.chanlabels(eegchan);
+        montage.chantypeorg = lower(D.chantype(eegchan)');
+        montage.chantypenew = lower(montage.chantypeorg);
+        montage.chanunitorg = D.units(eegchan)';
+        montage.chanunitnew = montage.chanunitorg;
+        montage.tra = tra;
         paths = D.path;
         save([paths,filesep,'Montage.mat'],'montage')
         montage_name = [paths,filesep,'Montage.mat'];
@@ -94,7 +98,6 @@ for i = 1:size(files,1)
     d{i} = out{end}.D;
     
     % Rewrite the channels as EEG
-    d{i} = chantype(d{i},indmeeg,'EEG');
     save(d{i});
 end
     

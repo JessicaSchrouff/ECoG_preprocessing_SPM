@@ -1,4 +1,4 @@
-function d = LBCN_filter_badchans(files,chanfile, bch, filter)
+function d = LBCN_filter_badchans(files,chanfile, bch, filter,conserv)
 
 % This function first filters the channels for line noise + two harmonics
 % using the batch 'Filter_NKnew_SPM_job.m'. It then takes the channel file
@@ -11,8 +11,12 @@ function d = LBCN_filter_badchans(files,chanfile, bch, filter)
 % Inputs:
 % files    : file names (optional)
 % chanfile : name of the .mat containing channel information (can be empty)
-% bch      : vector with indexes of bad channels
+% bch      : vector with indexes of bad channels or labels of bad channels
 % filter   : flag to filter the data or not (default = 1)
+% conserv  : 0 to be conservative and exclude the union of all bad
+%           channels, a number between 1/n_files and 1 to exclude bad 
+%           channels common to x% files (e.g. 0.5 for channels common to at 
+%           least 50% of the files).
 % Output:
 % D        : MEEG object, filtered with bad channels marked as 'bad'.
 %--------------------------------------------------------------------------
@@ -48,7 +52,10 @@ if nargin <4 || isempty(filter)
     filter = 1;
 end
 
-bchfile = union(bchfile,bch);
+if nargin<5 || isempty(conserv)
+    conserv = 0;
+end
+
 def = get_defaults_Parvizi;
 
 % Step 1: Filter the data using the batch
@@ -68,19 +75,26 @@ for i = 1:size(files,1)
     end
 end
 
+if ~isempty(bch) && iscell(bch) % if channel names provided instead of indexes
+    bch = indchannel(d{1},bch);
+end
+bchfile = union(bchfile,bch);
 
 % Step 2: Bad channels
 % -------------------------------------------------------------------------
 varmult = def.varmult;
 stdmult = def.stdmult;
-ibadchans = [];
+ibadchans = cell(length(d),1);
 
 for i = 1:length(d)
     % Step 2.1: Set bad channels based on clinical recordings
     % ---------------------------------------------------------------------
+    % reset all bad channels to good before detection
+    d{i} = badchannels(d{i},1:nchannels(d{i}),zeros(nchannels(d{i}),1));
     goodchans = setdiff(1:nchannels(d{i}), bchfile);
     
-    % Step 2.2: Automatic detection of bad channels based on signal std
+    % Step 2.2: Automatic detection of bad channels based on signal
+    % variance
     % ---------------------------------------------------------------------
     vch = var(d{i}(goodchans,:),0,2); % only look at the non-pathological channels
     b = find(vch>(varmult*median(vch)));
@@ -91,33 +105,45 @@ for i = 1:length(d)
     else
         disp(['No bad channels for file ', num2str(i)])
     end
-    ibadchans = union(ibadchans,goodchans(addb)); 
+    ibadchans{i} = goodchans(addb); 
     
     % Step 2.3: Automatic detection of bad channels based on signal spikes
     % ---------------------------------------------------------------------
-    std_chan = std(diff(d{i}(goodchans,:),1,2),0,2);
-    std_dat = mean(std_chan);
+%     std_chan = std(diff(d{i}(goodchans,:),1,2),0,2);
+%     std_dat = mean(std_chan);
     nr_jumps = zeros(length(goodchans),1);
     for j=1:length(goodchans)
-        nr_jumps(j) = length(find(diff(d{i}(goodchans(j),:))>stdmult*std_dat)); 
+        nr_jumps(j) = length(find(abs(diff(d{i}(goodchans(j),:),1,2))>100)); 
+%         nr_jumps(j) = length(find(abs(diff(d{i}(goodchans(j),:),1,2))>stdmult*std_dat)); 
     end
-    jch = find(nr_jumps>mean(nr_jumps));
+    jch = find(nr_jumps>stdmult*median(nr_jumps));
+%     jch = find(nr_jumps>0.25*size(d{i}(goodchans(1),:),2));
     if ~isempty(jch)
         addjch = goodchans(jch);
         disp(['Spiky channels for file ', num2str(i),':', num2str(addjch)])
-        ibadchans = union(ibadchans,addjch); 
+        ibadchans{i} = union(ibadchans{i},addjch); 
     else
         disp(['No spiky channels for file ', num2str(i)])
     end    
 end
 
+if ~conserv
+    totbad = union(bchfile,[ibadchans{:}]);
+elseif conserv>0
+    tmp = [ibadchans{:}];
+    n = hist(tmp,unique(tmp));
+    ibad = unique(tmp);
+    totbad = ibad(find(floor(n/(conserv*length(ibadchans)))));
+    totbad = union(bchfile,totbad);
+end
+
 % Save the bad channels into the SPM header
-for i= 1:length(d)
-    totbad = union(bchfile,ibadchans);
+for i= 1:length(d)   
     d{i} = badchannels(d{i},totbad,ones(length(totbad),1));
     save(d{i});
+    totbad = reshape(totbad,1,numel(totbad));
     if i==1
-        disp(['Bad channels for all files: ', num2str(totbad')])
+        disp(['Bad channels for all files: ', num2str(totbad)])
         chanlabels(d{i},badchannels(d{i}))
     end
 end

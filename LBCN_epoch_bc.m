@@ -1,4 +1,4 @@
-function D = LBCN_epoch_bc(fname,evt,indc,fieldons,twepoch,bc,fieldbc,twbc)
+function D = LBCN_epoch_bc(fname,evt,indc,fieldons,twepoch,bc,fieldbc,twbc,prefix)
 
 % Function to epoch the data, either raw signal or TF.
 % Inputs:
@@ -10,6 +10,7 @@ function D = LBCN_epoch_bc(fname,evt,indc,fieldons,twepoch,bc,fieldbc,twbc)
 % bc      : apply baseline correction (1) or not (0, default)
 % fieldbc : which field of events.mat to use for baseline correction
 % twbc    : time window for baseline correction (e.g. [-200, 0], in ms)
+% prefix  : prefix for resulting datafile
 % Outputs:
 % D       : epoched (and baseline corrected) SPM object contraining the
 %           signal
@@ -25,6 +26,7 @@ if nargin <1 || isempty(fname)
     fname = spm_select(1,'.mat','Select file to epoch',[],pwd,'.mat');
 end
 D = spm_eeg_load(fname);
+clear fname
 
 if nargin<2 || isempty(evt)
     evt = spm_select(1,'.mat','Select event file',[],pwd,'.mat');
@@ -35,6 +37,7 @@ if ~isfield(evt,'categories')
     disp('Event file should be in Parvizi format, exiting.')
     return
 end
+clear events
 
 if nargin<3 || isempty(indc)
     indc = 1:length(evt.categories); % default: look at all categories
@@ -51,8 +54,12 @@ else
 end
 
 if nargin<4 || isempty(twepoch)     
-    twepoch(1) = 0;                 % default: mean of the RTs
-    twepoch(2) = mean([evt.categories(indc).RT]);
+    twepoch(1) = def.twepoch(1);              
+    if isfield(evt.categories(indc),'RT') && ~isempty([evt.categories(:).RT])
+        twepoch(2) = mean([evt.categories(indc).RT]); % default: mean of the RTs
+    else
+        twepoch(2) = def.twepoch(2);  
+    end
 end
 
 if nargin<5 || isempty(bc)
@@ -72,6 +79,10 @@ elseif bc == 1
     end
 end
 
+if nargin <9
+    prefix = 'e';
+end
+
 % Step 2: Compute the events onsets and baseline correction windows
 % -------------------------------------------------------------------------
 
@@ -80,12 +91,12 @@ bctrl = [];
 evtspm = [];
 conditionlabels = [];
 for i = 1:length(indc)
-    eval('nevc = events.categories(indc(i)).fieldons;')
+    nevc = getfield(evt.categories(indc(i)),fieldons);
     if isempty(nevc) % No information for this category
         continue
     end
     if bc
-        eval('nebc = events.categories(indc(i)).fieldbc;')
+        nebc = getfield(evt.categories(indc(i)),fieldbc);
         if length(nevc) ~= length(nebc)
             disp('Not the same number of values for event onset and baseline correction')
             disp('Exiting')
@@ -102,14 +113,14 @@ for i = 1:length(indc)
             bctrl = [bctrl; [bc1, bc2]];
         end
     end
-    aa = events.categories(indc(i));
+    aa = evt.categories(indc(i));
     tempevt = struct('type',repmat({aa.name},1,aa.numEvents),...
             'value',num2cell(aa.stimNum),...
             'time',num2cell(aa.start),...
             'duration',num2cell(aa.duration),...
             'offset',repmat({0},1,aa.numEvents));
     evtspm = [evtspm , tempevt];
-    conditionlabels = [conditionslabels; repmat({aa.name}, 1, length(nevc))];
+    conditionlabels = [conditionlabels; repmat({aa.name}, length(nevc),1)];
 end
 
 inbounds = (trl(:,1)>=1 & trl(:, 2)<=D.nsamples);
@@ -123,16 +134,20 @@ if ~isempty(rejected)
     warning([D.fname ': Events ' num2str(rejected) ' not extracted - out of bounds']);
 end
 
+timeOnset = twepoch(1)/1000;
 ntrial = size(trl, 1);
 nsampl = unique(round(diff(trl, [], 2)))+1;
-D = events(D,1,evtspm);
+% D = events(D,1,evtspm);
+D = D.events(1,evtspm);
 
 % Generate new MEEG object with new filenames
 % -------------------------------------------------------------------------
-if isTF
-    Dnew = clone(D, ['e' fname(D)], [D.nchannels, D.nfrequencies, nsampl, ntrial]);
+if length(size(D))==4
+    Dnew = clone(D, [prefix D.fname], [D.nchannels, D.nfrequencies, nsampl, ntrial]);
+    isTF = 1;
 else
-    Dnew = clone(D, ['e' fname(D)], [D.nchannels, nsampl, ntrial]);
+    Dnew = clone(D, [prefix D.fname], [D.nchannels, nsampl, ntrial]);
+    isTF = 0;
 end
 
 Dnew = timeonset(Dnew, timeOnset);
@@ -140,8 +155,15 @@ Dnew = type(Dnew, 'single');
 
 % Step 3: epoch and baseline correct signal
 % -------------------------------------------------------------------------
-
+fprintf(['Epoching trial (out of %d):',repmat(' ',1,ceil(log10(ntrial))),'%d'],ntrial, 1);
 for i = 1:ntrial
+    
+    if i>1
+        for idisp = 1:ceil(log10(i)) % delete previous counter display
+            fprintf('\b');
+        end
+        fprintf('%d',i);
+    end
     if isTF
         d = D(:, :, trl(i, 1):trl(i, 2), 1);
         Dnew(:, :, :, i) = d;
@@ -157,9 +179,8 @@ for i = 1:ntrial
     end
     
     Dnew = events(Dnew, i, select_events(D.events, ...
-        [trl(i, 1)/D.fsample  trl(i, 2)/D.fsample]));
+        [time(D,trl(i, 1))  time(D,trl(i, 2))]));
     
-    if ismember(i, Ibar), spm_progress_bar('Set', i); end
 end
 
 Dnew = conditions(Dnew, ':', conditionlabels);
@@ -170,6 +191,8 @@ Dnew = trialonset(Dnew, ':', trl(:, 1)./D.fsample+D.trialonset);
 %--------------------------------------------------------------------------
 D = Dnew;
 save(D);
+fprintf('\n');
+disp(['Done: Epoching'])
 
 
 

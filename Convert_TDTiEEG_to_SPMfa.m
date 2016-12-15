@@ -4,19 +4,17 @@ function [D] = Convert_TDTiEEG_to_SPMfa(fsample,fchan,downsample,path_save,bch)
 % Function to convert TDT iEEG (raw ECoG data in .mat format) to an SPM MEEG
 % file array, including events onsets and durations. The routine will load
 % each channel and ask for the sampling rate and event file, before
-% outputting the MEEG object.
-% No pre-processing such as filtering or downsampling is performed
+% outputting the MEEG object. Optional downsampling.
+% No pre-processing such as filtering is performed.
 % inputs:
 % - fsample: sampling rate, can be a number or one of those 3 options (in
 %            string): 'TDT' (default: 1525.88Hz), 'oldNK' (default:1000Hz), 
 %            'newNK'(default: 1000Hz after export)
 % - fchan:   .mat file names corresponding to brain signal on each
 %            electrode.
-% - downsample: 1 to downsample and filter, 0 to filter only. The default
-%               values for filtering and downsampling can be modified by 
-%               opening the batch 'Downsample_filter_NKnew_SPM_job.m' for
-%               downsampling and filtering, or 'Notch_filter_NKnew_SPM_job.m'
-%               for filtering only.
+% - downsample: 1 to downsample (default is 0). The default
+%               value (new sampling rate) for downsampling can be modified  
+%               by opening the batch 'Downsample_NKnew_SPM_job.m'.
 % - path_save: path where to save the dataset. Default: directory with the
 %              electrode .mats
 % - bch:     index of the bad channels (will not be included in the SPM 
@@ -34,8 +32,8 @@ function [D] = Convert_TDTiEEG_to_SPMfa(fsample,fchan,downsample,path_save,bch)
 def=get_defaults_Parvizi;
 
 if nargin<1 || isempty(fsample)
-    disp('Please provide a sampling rate, exiting')
-    return
+    fsample = def.TDTfsample;
+    fprintf('Using TDT sampling rate: %d \n', fsample)
 elseif ~isnumeric(fsample)
     if strcmpi(fsample,'TDT')
         fsample = def.TDTfsample; %default to new files

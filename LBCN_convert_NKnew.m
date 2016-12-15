@@ -1,12 +1,13 @@
-
-function [D] = LBCN_convert_NKnew(fname, path_save)
-% Function to convert NK data from edf to SPM format. It takes as inputs
-% the name of the file (optional) and the path where to save the converted
-% data (optional).
+function [D,Ddiod] = LBCN_convert_NKnew(fname, path_save,downsample)
+% Function to convert NK data from edf to SPM format. 
+% Inputs:
+% - fname: name of file to convert. if empty, a selection window opens.
+% - path_save: path to save the new file. if empty, same path as file.
+% - downsample: 1 to downsample data (brain signal only) to a default value
+% (typically 1kHz) as specified in the batch job.
 % It creates a downsampled version of the signal, in SPM
 % .dat and .mat format. Additionally, it creates a separate file for the
-% microphone and another for the diod, which are not downsampled or
-% filtered.
+% microphone and another for the diod, which is not downsampled.
 % Multiple files can be selected, the code will generate sub-directories
 % for each 'block'.
 % All parameters can be modified by opening (GUI) the corresponding batches:
@@ -15,17 +16,41 @@ function [D] = LBCN_convert_NKnew(fname, path_save)
 %--------------------------------------------------------------------------
 %Written by J. Schrouff, LBCN, Stanford, 07/21/2015
 
+% Add SPM paths if needed
+% -------------------------------------------------------------------------
+% Add SPM's directories: matlabbatch
+if ~exist('cfg_util','file')
+    addpath(fullfile(spm('Dir'),'matlabbatch'));
+end
+% - SPM FieldTrip for MEEG
+if ~exist('ft_struct2double','file')
+    addpath(fullfile(spm('Dir'),'external','fieldtrip'));
+    clear ft_defaults
+    clear global ft_default
+    ft_defaults;
+    global ft_default
+    ft_default.trackcallinfo = 'no';
+    ft_default.showcallinfo = 'no';
+end
 
 % Inputs
+% -------------------------------------------------------------------------
 if nargin<1 || isempty(fname)
-    fname = spm_select(inf,'any','Select file to convert');
+    fname = spm_select(inf,'any','Select file to convert',{},pwd,'.edf');
 end
-if nargin<2 || isempty(path_save)
-    path_save = spm_select(1,'dir','Select directory where to save the data');
+
+if nargin<3 || isempty(downsample)
+    downsample = 0;
 end
 
 % For each file
 for id = 1:size(fname,1)
+    
+    
+    if nargin<2 || isempty(path_save)
+        path_save = spm_fileparts(deblank(fname(id,:)));
+    end
+    
     % Step 1: Anonymize edf files
     %--------------------------------------------------------------------------
     
@@ -60,7 +85,7 @@ for id = 1:size(fname,1)
     eeglab = {};
     idc=[];
     ielec=[];
-    label = {};
+    labelecog = {};
     labeldc = {};
     % Get the channel labels
     for i =1:length(list)
@@ -76,9 +101,31 @@ for id = 1:size(fname,1)
             elecnam = nel(intersect(itk,itr));
             eeglab = [eeglab,{elecnam}];
             ielec=[ielec;i];
-            label = [label,list{i}];
+            labelecog = [labelecog,list{i}];
         end
     end
+    
+    % Check that all channels have different labels
+%      labs = [labeldc,labelecog];
+%      [slab,ilab,iun] = unique(labs);
+%      if numel(slab) ~= numel(labs)
+%          disp('Some channels have the same labels, correcting')
+%          findrepet = diff(iun);
+%          numrepet = find(findrepet==0);
+%          for i  = 1:length(numrepet)
+%              labrepet = slab(iun(numrepet(i)));
+%              indrepet = indchannel(Dw, labrepet);
+%              repnewlab = find(ismember(ielec,indrepet(2)));
+%              nel = char(labrepet);
+%              poli = strfind(nel,eeglab{repnewlab});
+%              itreplace = poli:poli+length(eeglab{repnewlab})-1;
+%              itk = setdiff(1:length(nel),itreplace);
+%              newlab = [nel(itk(itk<poli)),eeglab{repnewlab},'1', ...
+%                  nel(itk(itk>max(itreplace)))];
+%              eeglab{repnewlab} = [eeglab{repnewlab},'1'];
+%              Dw = chanlabels(Dw,indrepet(2),newlab);
+%          end
+%      end
     
     if size(fname,1)>1
         % Create subdirectory for each file
@@ -87,48 +134,38 @@ for id = 1:size(fname,1)
     else
         path_block = path_save;
     end
-    save(fullfile(path_block,'Channel_Labels.mat'),'label');
-    labelsdc = labeldc;
-    label = labeldc;
-    save(fullfile(path_block,'DCchannel_Labels.mat'),'label');
     
+    [p,namefile] = spm_fileparts(deblank(fname(id,:)));
     % Create ECoG file
-    jobfile = {which('Convert_NKnew_to_SPMfa_job.m')};
-    spm_jobman('initcfg')
-    spm('defaults', 'EEG');
-    [path,name,ext] = spm_fileparts(fname(id,:));
-    spmname = fullfile(path_block,['ECoG_',name,ext]);
-    input_array{1} = {fname(id,:)};
-    input_array{2} = {fullfile(path_block,'Channel_Labels.mat')};
-    input_array{3} = spmname;
-    [out] = spm_jobman('run', jobfile,input_array{:});
-    D = out{1}.D;
-    D = chantype(D,1:length(ielec),'EEG');
-    D = chanlabels(D,1:length(ielec),eeglab);
-    save(D);
+     prefix = 'ECoG_';
+     crc_eeg_rdata_edf(deblank(fname(id,:)),labelecog,prefix,path_block);
+     fn_mat = fullfile(path_block,[prefix,namefile,'.mat']);
+     D = spm_eeg_load(fn_mat);
+     D = chantype(D,1:length(ielec),'EEG');
+     D = chanlabels(D,1:length(ielec),eeglab);
+     save(D);
     
     % Create diod file
+    Ddiod=[];
     if ~isempty(idc)
-        jobfile = {which('Convert_NKnew_to_SPMfa_job.m')};
-        diodname = fullfile(path_block,['DCchans_',name,ext]);
-        input_array{1} = {fname(id,:)};
-        input_array{2} = {fullfile(path_block,'DCchannel_Labels.mat')};
-        input_array{3} = diodname;
-        [out] = spm_jobman('run', jobfile, input_array{:});
-        Ddiod = out{1}.D;
+        prefix = 'DCchans_';
+        crc_eeg_rdata_edf(deblank(fname(id,:)),labeldc,prefix,path_block);
+        fn_mat = fullfile(path_block,[prefix,namefile,'.mat']);
+        Ddiod = spm_eeg_load(fn_mat);
         Ddiod = chantype(Ddiod,1:length(idc),'Other');
-        Ddiod = chanlabels(Ddiod,1:length(idc),labelsdc);
+        Ddiod = chanlabels(Ddiod,1:length(idc),labeldc);
         save(Ddiod);
-        clear Ddiod
     end
     
     
     % Step 3: Downsample ECoG data to 1000Hz
-    %--------------------------------------------------------------------------
-    jobfile = {which('Downsample_NKnew_SPM_job.m')};
-    namef = fullfile(path_block,D.fname);
-    [out]=spm_jobman('run', jobfile, {namef});
-    D = out{1}.D;
+    %----------------------------------------------------------------------
+    if downsample
+        jobfile = {which('Downsample_NKnew_SPM_job.m')};
+        namef = fullfile(path_block,D.fname);
+        [out]=spm_jobman('run', jobfile, {namef});
+        D = out{1}.D;
+    end
 end
 
 
